@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>專案管理系統</title>
+    <meta charset="UTF-8">
+    <script src="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.js"></script>
+    <link href="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 2rem;
+            width: 90%;
+            max-width: 500px;
+            border-radius: 0.5rem;
+        }
+        .nav-tabs {
+            margin-bottom: 20px;
+        }
+        .nav-tabs button {
+            padding: 10px 20px;
+            margin-right: 5px;
+        }
+        .tab-content > div {
+            display: none;
+        }
+        .tab-content > div.active {
+            display: block;
+        }
+        .gantt-chart {
+            width: 100%;
+            height: 600px;
+            background: white;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+
+        /* 甘特圖內部樣式調整 */
+        .gantt_grid_scale,
+        .gantt_task_scale {
+            background-color: #f3f4f6;
+            color: #374151;
+        }
+
+        .gantt_grid_data,
+        .gantt_task_bg {
+            background-color: white;
+        }
+
+        .gantt_task_line {
+            border-radius: 4px;
+            background-color: #3b82f6;
+            border: 1px solid #2563eb;
+        }
+
+        .gantt_task_progress {
+            background-color: #1d4ed8;
+        }
+
+        /* 未選中的標籤樣式 */
+        .tab-button {
+            background-color: #4B5563; /* 暗灰色 */
+            color: white;
+        }
+        
+        /* 選中的標籤樣式 */
+        .tab-button.active {
+            background-color: #3B82F6; /* 藍色 */
+            color: white;
+        }
+        
+        /* 懸停效果 */
+        .tab-button:hover {
+            opacity: 0.9;
+        }
+
+        /* 時間尺度按鈕樣式 */
+        .scale-button {
+            background-color: #4B5563; /* 暗灰色 */
+            color: white;
+        }
+        
+        .scale-button.active {
+            background-color: #3B82F6; /* 藍色 */
+            color: white;
+        }
+        
+        .scale-button:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="p-4">
+        <div class="mb-4 flex justify-between items-center bg-white p-4 rounded-lg shadow">
+            <div class="space-x-2">
+                <button onclick="showTab('gantt')" 
+                    class="px-4 py-2 rounded transition-colors duration-200 tab-button" 
+                    data-tab="gantt">甘特圖</button>
+                <button onclick="showTab('projects')" 
+                    class="px-4 py-2 rounded transition-colors duration-200 tab-button" 
+                    data-tab="projects">專案管理</button>
+                {% if g.user['username'] == 'admin' %}
+                <button onclick="showTab('users')" 
+                    class="px-4 py-2 rounded transition-colors duration-200 tab-button" 
+                    data-tab="users">用戶管理</button>
+                {% endif %}
+            </div>
+            <div class="flex items-center space-x-4">
+                <span>歡迎, {{ g.user['username'] }}</span>
+                <button onclick="showChangePasswordModal()" class="text-blue-500 hover:text-blue-700">修改密碼</button>
+                <a href="/auth/logout" class="text-red-500 hover:text-red-700">登出</a>
+            </div>
+        </div>
+
+        <div class="tab-content bg-white p-4 rounded-lg shadow">
+            <div id="gantt" class="active">
+                <div class="mb-4 flex space-x-2">
+                    <button onclick="changeScale('day')" 
+                        class="px-3 py-1 rounded transition-colors duration-200 scale-button" 
+                        data-scale="day">日</button>
+                    <button onclick="changeScale('week')" 
+                        class="px-3 py-1 rounded transition-colors duration-200 scale-button" 
+                        data-scale="week">週</button>
+                    <button onclick="changeScale('month')" 
+                        class="px-3 py-1 rounded transition-colors duration-200 scale-button" 
+                        data-scale="month">月</button>
+                    <button onclick="changeScale('year')" 
+                        class="px-3 py-1 rounded transition-colors duration-200 scale-button" 
+                        data-scale="year">年</button>
+                </div>
+                <div id="gantt-container" class="gantt-chart"></div>
+            </div>
+
+            <div id="projects" class="hidden">
+                <button onclick="showProjectModal()" class="mb-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
+                    新增專案
+                </button>
+                <table class="min-w-full bg-white">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-6 py-3 border-b text-left">專案名稱</th>
+                            <th class="px-6 py-3 border-b text-left">開始日期</th>
+                            <th class="px-6 py-3 border-b text-left">結束日期</th>
+                            <th class="px-6 py-3 border-b text-left">負責人</th>
+                            <th class="px-6 py-3 border-b text-left">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="projectsList"></tbody>
+                </table>
+            </div>
+
+            {% if g.user['username'] == 'admin' %}
+            <div id="users" class="hidden">
+                <button onclick="showUserModal()" class="mb-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
+                    新增用戶
+                </button>
+                <table class="min-w-full bg-white">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-6 py-3 border-b text-left">用戶名</th>
+                            <th class="px-6 py-3 border-b text-left">創建時間</th>
+                            <th class="px-6 py-3 border-b text-left">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersList"></tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 新增專案模態框 -->
+    <div id="projectModal" class="modal">
+        <div class="modal-content rounded-lg shadow-lg">
+            <h2 class="text-xl font-bold mb-4">新增專案</h2>
+            <form id="projectForm" class="space-y-4">
+                <div>
+                    <label class="block text-gray-700 mb-2">專案名稱：</label>
+                    <input type="text" name="title" required
+                        class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-gray-700 mb-2">開始日期：</label>
+                    <input type="date" name="start_date" required
+                        class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-gray-700 mb-2">結束日期：</label>
+                    <input type="date" name="end_date" required
+                        class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-gray-700 mb-2">負責人：</label>
+                    <select name="user_id" id="userSelect" required
+                        class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                    </select>
+                </div>
+                <div class="flex justify-end space-x-2 mt-4">
+                    <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                        保存
+                    </button>
+                    <button type="button" onclick="closeProjectModal()" 
+                        class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                        取消
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 新增用戶模態框 -->
+    <div id="userModal" class="modal">
+        <div class="modal-content rounded-lg shadow-lg">
+            <h2 class="text-xl font-bold mb-4">新增用戶</h2>
+            <form id="userForm" class="space-y-4">
+                <div>
+                    <label class="block text-gray-700 mb-2">用戶名：</label>
+                    <input type="text" name="username" required
+                        class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-gray-700 mb-2">密碼：</label>
+                    <input type="password" name="password" required
+                        class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="flex justify-end space-x-2 mt-4">
+                    <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                        保存
+                    </button>
+                    <button type="button" onclick="closeUserModal()"
+                        class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                        取消
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 添加修改密碼模態框 -->
+    <div id="changePasswordModal" class="modal">
+        <div class="modal-content rounded-lg shadow-lg">
+            <h2 class="text-xl font-bold mb-4">修改密碼</h2>
+            <form id="changePasswordForm" class="space-y-4">
+                <div>
+                    <label class="block text-gray-700 mb-2">原密碼：</label>
+                    <input type="password" name="old_password" required
+                        class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-gray-700 mb-2">新密碼：</label>
+                    <input type="password" name="new_password" required
+                        class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-gray-700 mb-2">確認新密碼：</label>
+                    <input type="password" name="confirm_password" required
+                        class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="flex justify-end space-x-2 mt-4">
+                    <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                        確認修改
+                    </button>
+                    <button type="button" onclick="closeChangePasswordModal()"
+                        class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                        取消
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // 頁籤切換
+        function showTab(tabId) {
+            // 隱藏所有標籤內容
+            document.querySelectorAll('.tab-content > div').forEach(div => {
+                div.classList.remove('active');
+            });
+            
+            // 顯示選中的標籤內容
+            document.getElementById(tabId).classList.add('active');
+            
+            // 更新標籤按鈕樣式
+            document.querySelectorAll('.tab-button').forEach(button => {
+                if (button.getAttribute('data-tab') === tabId) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            });
+
+            // 加載相應的數據
+            if (tabId === 'projects') loadProjects();
+            if (tabId === 'users') loadUsers();
+            if (tabId === 'gantt') initGantt();
+        }
+
+        // 專案相關函數
+        function showProjectModal() {
+            // 重置表單
+            const form = document.getElementById('projectForm');
+            form.reset();
+            delete form.dataset.projectId;
+            
+            // 設置標題為新增
+            document.querySelector('#projectModal h2').textContent = '新增專案';
+            
+            // 顯示模態框
+            document.getElementById('projectModal').style.display = 'block';
+            loadUsers(true);
+        }
+
+        function closeProjectModal() {
+            const modal = document.getElementById('projectModal');
+            modal.style.display = 'none';
+            
+            // 重置表單
+            const form = document.getElementById('projectForm');
+            form.reset();
+            delete form.dataset.projectId;
+            
+            // 重置標題
+            document.querySelector('#projectModal h2').textContent = '新增專案';
+        }
+
+        async function loadProjects() {
+            const response = await fetch('/api/tasks');
+            const tasks = await response.json();
+            const currentUser = '{{ g.user.username }}';
+            const isAdmin = currentUser === 'admin';
+            
+            const tbody = document.getElementById('projectsList');
+            tbody.innerHTML = tasks.map(task => {
+                const canEdit = isAdmin || task.user_id === {{ g.user.id }};
+                return `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 border-b">${task.title}</td>
+                        <td class="px-6 py-4 border-b">${task.start_date}</td>
+                        <td class="px-6 py-4 border-b">${task.end_date}</td>
+                        <td class="px-6 py-4 border-b">${task.username}</td>
+                        <td class="px-6 py-4 border-b">
+                            ${canEdit ? `
+                                <button onclick="editProject(${task.id}, '${task.title}', '${task.start_date}', '${task.end_date}', ${task.user_id})" 
+                                    class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 mr-2">
+                                    編輯
+                                </button>
+                                <button onclick="deleteProject(${task.id})" 
+                                    class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">
+                                    刪除
+                                </button>
+                            ` : ''}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // 添加刪除專案功能
+        async function deleteProject(id) {
+            if (!confirm('確定要刪除此專案嗎？')) return;
+            
+            try {
+                const response = await fetch(`/api/tasks/${id}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    loadProjects();
+                } else {
+                    alert(result.error || '刪除失敗');
+                }
+            } catch (error) {
+                alert('刪除失敗: ' + error.message);
+            }
+        }
+
+        // 添加重置密碼功能
+        async function resetPassword(userId) {
+            const currentUser = '{{ g.user.username }}';
+            if (currentUser !== 'admin') {
+                alert('只有管理員可以重置其他用戶的密碼');
+                return;
+            }
+            
+            if (!confirm('確定要重置此用戶的密碼嗎？')) return;
+            
+            try {
+                const response = await fetch(`/api/users/${userId}/reset-password`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert(result.message);
+                } else {
+                    alert(result.error || '重置密碼失敗');
+                }
+            } catch (error) {
+                alert('重置密碼失敗: ' + error.message);
+            }
+        }
+
+        // 添加刪除用戶功能
+        async function deleteUser(userId) {
+            if (!confirm('確定要刪除此用戶嗎？')) return;
+            
+            try {
+                const response = await fetch(`/api/users/${userId}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    loadUsers();
+                } else {
+                    alert(result.error || '刪除用戶失敗');
+                }
+            } catch (error) {
+                alert('刪除用戶失敗: ' + error.message);
+            }
+        }
+
+        // 用戶相關函數
+        function showUserModal() {
+            document.getElementById('userModal').style.display = 'block';
+        }
+
+        function closeUserModal() {
+            document.getElementById('userModal').style.display = 'none';
+        }
+
+        async function loadUsers(forSelect = false) {
+            const response = await fetch('/api/users');
+            const users = await response.json();
+            if (forSelect) {
+                const select = document.getElementById('userSelect');
+                select.innerHTML = users.map(user => 
+                    `<option value="${user.id}">${user.username}</option>`
+                ).join('');
+            } else {
+                const tbody = document.getElementById('usersList');
+                tbody.innerHTML = users.map(user => `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 border-b">${user.username}</td>
+                        <td class="px-6 py-4 border-b">${user.created_at}</td>
+                        <td class="px-6 py-4 border-b">
+                            <button onclick="resetPassword(${user.id})" 
+                                class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 mr-2">
+                                重置密碼
+                            </button>
+                            <button onclick="deleteUser(${user.id})"
+                                class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">
+                                刪除
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        // 表單提交處理
+        document.getElementById('projectForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const projectId = e.target.dataset.projectId;
+            
+            try {
+                const url = projectId ? `/api/tasks/${projectId}` : '/api/tasks';
+                const method = projectId ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        title: formData.get('title'),
+                        start_date: formData.get('start_date'),
+                        end_date: formData.get('end_date'),
+                        user_id: formData.get('user_id')
+                    })
+                });
+                
+                const result = await response.json();
+                if (response.ok) {
+                    alert(projectId ? '專案更新成功' : '專案創建成功');
+                    closeProjectModal();
+                    loadProjects();
+                    initGantt(); // 重新加載甘特圖
+                } else {
+                    alert(result.error || '操作失敗');
+                }
+            } catch (error) {
+                alert('操作失敗: ' + error.message);
+            }
+        };
+
+        document.getElementById('userForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const response = await fetch('/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(Object.fromEntries(formData))
+            });
+            if (response.ok) {
+                closeUserModal();
+                loadUsers();
+            } else {
+                alert('保存失敗');
+            }
+        };
+
+        // 定義時間尺度配置
+        const scales = {
+            day: {
+                scale_unit: "day",
+                step: 1,
+                date_scale: "%d %M",
+                subscales: [
+                    {unit: "hour", step: 6, date: "%H:00"}
+                ]
+            },
+            week: {
+                scale_unit: "week",
+                step: 1,
+                date_scale: "%d %M",
+                subscales: [
+                    {unit: "day", step: 1, date: "%D"}
+                ]
+            },
+            month: {
+                scale_unit: "month",
+                step: 1,
+                date_scale: "%Y年%M",
+                subscales: [
+                    {unit: "week", step: 1, date: "%d日"}
+                ]
+            },
+            year: {
+                scale_unit: "year",
+                step: 1,
+                date_scale: "%Y",
+                subscales: [
+                    {unit: "month", step: 1, date: "%M"}
+                ]
+            }
+        };
+
+        // 時間尺度切換函數
+        function changeScale(scaleType) {
+            const scale = scales[scaleType];
+            gantt.config.scale_unit = scale.scale_unit;
+            gantt.config.step = scale.step;
+            gantt.config.date_scale = scale.date_scale;
+            gantt.config.subscales = scale.subscales;
+
+            // 根據不同尺度調整時間軸格式
+            if (scaleType === 'day') {
+                gantt.config.min_column_width = 70;
+            } else if (scaleType === 'week') {
+                gantt.config.min_column_width = 100;
+            } else if (scaleType === 'month') {
+                gantt.config.min_column_width = 130;
+            } else {
+                gantt.config.min_column_width = 150;
+            }
+
+            // 更新按鈕樣式
+            document.querySelectorAll('.scale-button').forEach(button => {
+                if (button.getAttribute('data-scale') === scaleType) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            });
+
+            gantt.render();
+        }
+
+        // 修改 initGantt 函數
+        async function initGantt() {
+            // 基本配置
+            gantt.config.date_format = "%Y-%m-%d";
+            gantt.config.min_column_width = 70;
+            
+            // 允許拖動和編輯
+            gantt.config.readonly = false;
+            gantt.config.drag_progress = true;
+            gantt.config.drag_resize = true;
+            gantt.config.drag_move = true;
+            
+            // 設置工作時間
+            gantt.config.work_time = true;
+            gantt.config.skip_off_time = true;
+            
+            // 設置週末顯示
+            gantt.config.weekend_background = "rgba(245, 245, 245, 0.5)";
+            gantt.config.weekends = ["saturday", "sunday"];
+            
+            // 設置今日線
+            gantt.config.show_progress = true;
+            gantt.config.current_date = new Date();
+
+            // 自定義燈箱（編輯表單）
+            gantt.config.lightbox.sections = [
+                {name: "description", height: 38, map_to: "text", type: "textarea", focus: true},
+                {name: "owner", height: 22, map_to: "owner", type: "select", options: await loadUserOptions()},
+                {name: "time", type: "duration", map_to: "auto"}
+            ];
+
+            // 自定義燈箱按鈕
+            gantt.locale.labels.section_description = "專案名稱";
+            gantt.locale.labels.section_time = "時間";
+            gantt.locale.labels.section_owner = "負責人";
+
+            // 設置工具提示
+            gantt.templates.tooltip_text = function(start, end, task) {
+                return `<b>專案:</b> ${task.text}<br/>
+                        <b>開始:</b> ${gantt.templates.tooltip_date_format(start)}<br/>
+                        <b>結束:</b> ${gantt.templates.tooltip_date_format(end)}<br/>
+                        <b>負責人:</b> ${task.owner}<br/>
+                        <b>進度:</b> ${Math.round(task.progress * 100)}%`;
+            };
+
+            // 添加權限控制
+            gantt.attachEvent("onBeforeTaskUpdate", function(id, new_item) {
+                const currentUser = '{{ g.user.username }}';
+                const isAdmin = currentUser === 'admin';
+                if (!isAdmin && new_item.user_id !== {{ g.user.id }}) {
+                    alert('您沒有權限修改此專案');
+                    return false;
+                }
+                return true;
+            });
+
+            // 任務更新後保存到數據庫
+            gantt.attachEvent("onAfterTaskUpdate", async function(id, item) {
+                try {
+                    // 格式化日期
+                    const formatDate = (date) => {
+                        if (typeof date === 'string') return date;
+                        const d = new Date(date);
+                        const year = d.getFullYear();
+                        const month = String(d.getMonth() + 1).padStart(2, '0');
+                        const day = String(d.getDate()).padStart(2, '0');
+                        return `${year}-${month}-${day}`;
+                    };
+
+                    const response = await fetch(`/api/tasks/${id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            title: item.text,
+                            start_date: formatDate(item.start_date),
+                            end_date: formatDate(item.end_date),
+                            user_id: item.user_id,
+                            progress: item.progress || 0
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.error || '更新失敗');
+                    }
+                } catch (error) {
+                    alert('保存失敗: ' + error.message);
+                    gantt.refreshData();
+                }
+            });
+
+            // 添加日期格式化處理
+            gantt.templates.parse_date = function(date) {
+                return new Date(date);
+            };
+            
+            gantt.templates.format_date = function(date) {
+                const d = new Date(date);
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
+
+            // 設置任務條的模板，顯示開始和結束時間
+            gantt.templates.task_text = function(start, end, task) {
+                const formatDate = (date) => {
+                    const d = new Date(date);
+                    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                };
+                return `${task.text} (${formatDate(start)} ~ ${formatDate(end)})`;
+            };
+
+            // 調整任務條的樣式
+            gantt.config.task_height = 30; // 增加任務條高度
+            gantt.config.row_height = 40; // 增加行高
+            
+            // 設置左側任務名稱列的寬度
+            gantt.config.columns[0].width = 300; // 增加專案名稱列寬度
+
+            // 設置任務條的提示信息
+            gantt.templates.tooltip_text = function(start, end, task) {
+                const formatDate = (date) => {
+                    const d = new Date(date);
+                    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                };
+                return `<div class="p-2">
+                            <div class="font-bold">${task.text}</div>
+                            <div>開始：${formatDate(start)}</div>
+                            <div>結束：${formatDate(end)}</div>
+                            <div>負責人：${task.owner}</div>
+                            <div>進度：${Math.round(task.progress * 100)}%</div>
+                        </div>`;
+            };
+
+            // 自定義任務條的樣式
+            gantt.templates.task_class = function(start, end, task) {
+                return 'custom-task';
+            };
+
+            // 添加自定義 CSS 樣式
+            const style = document.createElement('style');
+            style.textContent = `
+                .gantt_task_line {
+                    border-radius: 20px;
+                    font-size: 12px;
+                    padding: 0 8px;
+                }
+                .custom-task {
+                    color: white;
+                    background-color: #3b82f6;
+                }
+                .gantt_task_progress {
+                    background-color: #1d4ed8;
+                    border-radius: 20px;
+                }
+            `;
+            document.head.appendChild(style);
+
+            // 初始化甘特圖
+            gantt.init("gantt-container");
+            
+            // 加載任務數據
+            const response = await fetch('/api/tasks');
+            const tasks = await response.json();
+            
+            // 轉換數據格式
+            const ganttTasks = tasks.map(task => ({
+                id: task.id,
+                text: task.title,
+                start_date: task.start_date,
+                end_date: task.end_date,
+                owner: task.username,
+                user_id: task.user_id,
+                progress: task.progress || 0
+            }));
+
+            // 設置甘特圖列
+            gantt.config.columns = [
+                {name: "text", label: "專案名稱", tree: true, width: 200, resize: true},
+                {name: "owner", label: "負責人", align: "center", width: 80, resize: true},
+                {name: "progress", label: "進度", align: "center", width: 60, resize: true, 
+                 template: function(task) { return Math.round(task.progress * 100) + "%"; }},
+                {name: "start_date", label: "開始日期", align: "center", width: 100, resize: true},
+                {name: "end_date", label: "結束日期", align: "center", width: 120, resize: true}
+            ];
+
+            // 載入數據
+            gantt.parse({
+                data: ganttTasks
+            });
+
+            // 預設使用週視圖並設置按鈕狀態
+            changeScale('week');
+            const weekButton = document.querySelector('[data-scale="week"]');
+            if (weekButton) {
+                weekButton.classList.add('active');
+            }
+        }
+
+        // 添加加載用戶選項的輔助函數
+        async function loadUserOptions() {
+            const response = await fetch('/api/users');
+            const users = await response.json();
+            return users.map(user => ({
+                key: user.id,
+                label: user.username
+            }));
+        }
+
+        // 頁面加載時初始化甘特圖
+        window.onload = function() {
+            initGantt();
+        };
+
+        // 初始加載
+        loadProjects();
+
+        // 修改密碼相關函數
+        function showChangePasswordModal() {
+            document.getElementById('changePasswordModal').style.display = 'block';
+        }
+
+        function closeChangePasswordModal() {
+            document.getElementById('changePasswordModal').style.display = 'none';
+            document.getElementById('changePasswordForm').reset();
+        }
+
+        // 處理修改密碼表單提交
+        document.getElementById('changePasswordForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData);
+            
+            if (data.new_password !== data.confirm_password) {
+                alert('新密碼與確認密碼不符');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/users/change-password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        old_password: data.old_password,
+                        new_password: data.new_password
+                    })
+                });
+                
+                const result = await response.json();
+                if (response.ok) {
+                    alert(result.message);
+                    closeChangePasswordModal();
+                } else {
+                    alert(result.error || '密碼修改失敗');
+                }
+            } catch (error) {
+                alert('密碼修改失敗: ' + error.message);
+            }
+        };
+
+        // 頁面加載時初始化第一個標籤
+        document.addEventListener('DOMContentLoaded', function() {
+            // 設置甘特圖標籤為預設選中狀態
+            const ganttButton = document.querySelector('[data-tab="gantt"]');
+            if (ganttButton) {
+                ganttButton.classList.add('active');
+            }
+        });
+
+        // 添加編輯專案的函數
+        function editProject(id, title, start_date, end_date, user_id) {
+            // 設置表單標題
+            document.querySelector('#projectModal h2').textContent = '編輯專案';
+            
+            // 填充表單數據
+            const form = document.getElementById('projectForm');
+            form.elements['title'].value = title;
+            form.elements['start_date'].value = start_date;
+            form.elements['end_date'].value = end_date;
+            form.elements['user_id'].value = user_id;
+            
+            // 保存專案 ID 用於更新
+            form.dataset.projectId = id;
+            
+            // 顯示模態框
+            document.getElementById('projectModal').style.display = 'block';
+        }
+    </script>
+</body>
+</html> 

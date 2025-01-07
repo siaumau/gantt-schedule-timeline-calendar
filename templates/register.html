@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>註冊</title>
+</head>
+<body>
+    <form id="registerForm">
+        <input type="text" name="username" placeholder="用戶名" required>
+        <input type="password" name="password" placeholder="密碼" required>
+        <button type="submit">註冊</button>
+    </form>
+    <a href="/login">已有帳號？點此登入</a>
+    
+    <script>
+        document.getElementById('registerForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const response = await fetch('/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: formData.get('username'),
+                    password: formData.get('password')
+                })
+            });
+            if (response.ok) {
+                alert('註冊成功！');
+                window.location.href = '/login';
+            } else {
+                alert('註冊失敗');
+            }
+        };
+    </script>
+</body>
+</html> 
