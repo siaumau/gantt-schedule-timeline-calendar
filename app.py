@@ -2,9 +2,11 @@ from flask import Flask, session, g, render_template, redirect, url_for, jsonify
 from auth import auth
 from db import get_db, init_app
 from werkzeug.security import generate_password_hash
+import os
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = '您的密鑰'  # 請更換為安全的密鑰
+# 從環境變量獲取密鑰，如果沒有則生成一個隨機密鑰
+app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY') or os.urandom(24)
 
 # 初始化資料庫
 init_app(app)
@@ -197,5 +199,8 @@ def change_password():
         return jsonify({'error': f'密碼修改失敗: {str(e)}'}), 500
 
 if __name__ == '__main__':
-    app.config['SECRET_KEY'] = '您的密鑰'  # 請更改為安全的密鑰
-    app.run(debug=True) 
+    app.run(
+        host='0.0.0.0',
+        port=5000,
+        debug=True
+    ) 

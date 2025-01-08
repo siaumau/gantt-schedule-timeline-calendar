@@ -3,10 +3,35 @@
 <head>
     <title>專案管理系統</title>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.js"></script>
     <link href="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.css" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* 添加響應式樣式 */
+        @media (max-width: 768px) {
+            .gantt-chart {
+                height: 400px; /* 在手機上減少高度 */
+            }
+            
+            .modal-content {
+                width: 95%; /* 在手機上幾乎占滿寬度 */
+                margin: 10px;
+                max-height: 90vh;
+                overflow-y: auto;
+            }
+            
+            .tab-button {
+                padding: 8px 12px; /* 縮小按鈕間距 */
+                font-size: 14px;
+            }
+            
+            /* 調整表格在手機上的顯示 */
+            .overflow-x-auto {
+                -webkit-overflow-scrolling: touch;
+            }
+        }
+
         .modal {
             display: none;
             position: fixed;
@@ -616,12 +641,126 @@
             gantt.config.show_progress = true;
             gantt.config.current_date = new Date();
 
-            // 自定義燈箱（編輯表單）
-            gantt.config.lightbox.sections = [
-                {name: "description", height: 38, map_to: "text", type: "textarea", focus: true},
-                {name: "owner", height: 22, map_to: "owner", type: "select", options: await loadUserOptions()},
-                {name: "time", type: "duration", map_to: "auto"}
-            ];
+            // 禁用默認的編輯框
+            gantt.config.lightbox.sections = [];
+            
+            // 設置自定義的編輯處理
+            gantt.attachEvent("onTaskDblClick", function(id, e) {
+                const task = gantt.getTask(id);
+                showEditForm(task);
+                return false; // 阻止默認編輯框
+            });
+
+            // 添加自定義編輯表單
+            const editFormHtml = `
+                <div id="ganttEditForm" class="modal">
+                    <div class="modal-content rounded-lg shadow-lg">
+                        <h2 class="text-xl font-bold mb-4" id="editFormTitle"></h2>
+                        <form id="taskEditForm" class="space-y-4">
+                            <div>
+                                <label class="block text-gray-700 mb-2">專案名稱：</label>
+                                <input type="text" name="title" required
+                                    class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 mb-2">開始日期：</label>
+                                <input type="date" name="start_date" required
+                                    class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 mb-2">結束日期：</label>
+                                <input type="date" name="end_date" required
+                                    class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 mb-2">負責人：</label>
+                                <select name="user_id" required
+                                    class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                                </select>
+                            </div>
+                            <div class="flex justify-end space-x-2 mt-4">
+                                <button type="submit" 
+                                    class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                                    保存
+                                </button>
+                                <button type="button" onclick="closeEditForm()"
+                                    class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                                    取消
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            
+            // 添加表單到頁面
+            document.body.insertAdjacentHTML('beforeend', editFormHtml);
+
+            // 顯示編輯表單函數
+            window.showEditForm = async function(task) {
+                const form = document.getElementById('taskEditForm');
+                const title = document.getElementById('editFormTitle');
+                const modal = document.getElementById('ganttEditForm');
+
+                // 設置標題
+                title.textContent = `編輯專案: ${task.text}`;
+
+                // 填充表單數據
+                form.elements['title'].value = task.text;
+                form.elements['start_date'].value = gantt.date.date_to_str('%Y-%m-%d')(task.start_date);
+                form.elements['end_date'].value = gantt.date.date_to_str('%Y-%m-%d')(task.end_date);
+
+                // 加載用戶選項
+                const users = await loadUserOptions();
+                const select = form.elements['user_id'];
+                select.innerHTML = users.map(user => 
+                    `<option value="${user.key}" ${task.user_id == user.key ? 'selected' : ''}>
+                        ${user.label}
+                    </option>`
+                ).join('');
+
+                // 顯示模態框
+                modal.style.display = 'block';
+
+                // 處理表單提交
+                form.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    
+                    try {
+                        const response = await fetch(`/api/tasks/${task.id}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                title: formData.get('title'),
+                                start_date: formData.get('start_date'),
+                                end_date: formData.get('end_date'),
+                                user_id: formData.get('user_id'),
+                                progress: task.progress || 0
+                            })
+                        });
+
+                        if (response.ok) {
+                            closeEditForm();
+                            gantt.refreshData();
+                        } else {
+                            const error = await response.json();
+                            throw new Error(error.error || '更新失敗');
+                        }
+                    } catch (error) {
+                        alert('保存失敗: ' + error.message);
+                    }
+                };
+            };
+
+            // 關閉編輯表單函數
+            window.closeEditForm = function() {
+                const modal = document.getElementById('ganttEditForm');
+                modal.style.display = 'none';
+                document.getElementById('taskEditForm').reset();
+            };
 
             // 自定義燈箱按鈕
             gantt.locale.labels.section_description = "專案名稱";
@@ -792,6 +931,42 @@
             if (weekButton) {
                 weekButton.classList.add('active');
             }
+
+            // 添加響應式配置
+            function adjustForMobile() {
+                if (window.innerWidth <= 768) {
+                    gantt.config.min_column_width = 40; // 減少列寬
+                    gantt.config.scale_height = 30; // 減少刻度高度
+                    gantt.config.row_height = 30; // 減少行高
+                    
+                    // 調整列的顯示
+                    gantt.config.columns = [
+                        {name: "text", label: "專案", tree: true, width: 150},
+                        {name: "owner", label: "負責人", align: "center", width: 60},
+                        {name: "progress", label: "進度", align: "center", width: 50,
+                         template: function(task) { return Math.round(task.progress * 100) + "%"; }}
+                    ];
+                } else {
+                    // 桌面版配置
+                    gantt.config.min_column_width = 70;
+                    gantt.config.scale_height = 50;
+                    gantt.config.row_height = 40;
+                    
+                    // 恢復完整的列配置
+                    gantt.config.columns = [
+                        {name: "text", label: "專案名稱", tree: true, width: 200},
+                        {name: "owner", label: "負責人", align: "center", width: 80},
+                        {name: "progress", label: "進度", align: "center", width: 60},
+                        {name: "start_date", label: "開始日期", align: "center", width: 100},
+                        {name: "end_date", label: "結束日期", align: "center", width: 100}
+                    ];
+                }
+                gantt.render(); // 重新渲染
+            }
+
+            // 監聽視窗大小變化
+            window.addEventListener('resize', adjustForMobile);
+            adjustForMobile(); // 初始化時執行一次
         }
 
         // 添加加載用戶選項的輔助函數

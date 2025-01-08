@@ -69,3 +69,26 @@ python app.py
 1. 首次使用需建立資料庫
 2. 請妥善保管管理員密碼
 3. 定期備份資料庫檔案
+
+## 安全配置
+
+### SECRET_KEY 設置
+1. 開發環境：
+   ```bash
+   # Windows
+   set FLASK_SECRET_KEY=your-secret-key
+   
+   # Linux/Mac
+   export FLASK_SECRET_KEY=your-secret-key
+   ```
+
+2. 生產環境：
+   - 使用強密鑰
+   - 不要在代碼中硬編碼
+   - 建議使用環境變量或配置文件
+   - 定期更換密鑰
+
+### 注意事項
+- 請勿將 SECRET_KEY 提交到版本控制系統
+- 生產環境必須使用強密鑰
+- 如果懷疑密鑰洩露，請立即更換
