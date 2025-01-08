@@ -92,3 +92,72 @@ python app.py
 - 請勿將 SECRET_KEY 提交到版本控制系統
 - 生產環境必須使用強密鑰
 - 如果懷疑密鑰洩露，請立即更換
+
+## 打包說明
+
+### 1. 安裝必要套件
+```bash
+pip install pyinstaller appdirs
+```
+
+### 2. 執行打包
+```bash
+# 使用配置文件打包
+pyinstaller gantt.spec
+```
+
+打包完成後，可在 `dist` 目錄下找到執行檔：
+- Windows: `ProjectManager.exe`
+- Linux/Mac: `ProjectManager`
+
+### 3. 執行檔使用說明
+- 直接執行：使用預設 5000 端口
+  ```bash
+  ProjectManager.exe
+  ```
+
+- 指定端口執行：
+  ```bash
+  ProjectManager.exe --port 8080
+  ```
+
+## 資料庫管理
+
+### 1. 資料庫位置
+資料庫檔案存放在用戶數據目錄：
+- Windows: `C:\Users\<username>\AppData\Local\YourCompany\ProjectManager`
+- Linux: `~/.local/share/ProjectManager`
+- Mac: `~/Library/Application Support/ProjectManager`
+
+### 2. 備份功能
+1. 使用命令行備份：
+   ```bash
+   ProjectManager.exe --backup
+   ```
+   - 會在數據目錄下創建 `backups` 資料夾
+   - 備份檔案格式：`gantt_backup_YYYYMMDD_HHMMSS.db`
+
+2. 手動備份：
+   - 直接複製 `gantt.db` 檔案
+   - 建議在系統關閉時進行備份
+
+### 3. 版本更新注意事項
+1. 更新前備份資料庫
+2. 資料庫位於用戶數據目錄，不會被更新覆蓋
+3. 可使用 `--backup` 參數進行自動備份
+
+## 故障排除
+
+### 1. 找不到資料庫
+- 檢查用戶數據目錄是否存在
+- 確認是否有寫入權限
+- 使用 `--backup` 參數查看當前資料庫位置
+
+### 2. 端口被占用
+- 使用 `--port` 參數指定其他端口
+- 檢查是否有其他服務使用該端口
+
+### 3. 資料庫損壞
+1. 停止應用程序
+2. 從備份目錄恢復最近的備份
+3. 重新啟動應用程序

@@ -1,12 +1,21 @@
 import sqlite3
 from werkzeug.security import generate_password_hash
+import os
+import appdirs
 
 def init_db():
-    # 連接到資料庫（如果不存在會創建）
-    conn = sqlite3.connect('gantt.db')
+    # 獲取數據目錄
+    APP_NAME = "ProjectManager"
+    APP_AUTHOR = "YourCompany"
+    DATA_DIR = appdirs.user_data_dir(APP_NAME, APP_AUTHOR)
+    db_path = os.path.join(DATA_DIR, 'gantt.db')
+    schema_path = os.path.join(DATA_DIR, 'schema.sql')
+
+    # 連接到資料庫
+    conn = sqlite3.connect(db_path)
     
     # 讀取 schema.sql
-    with open('schema.sql', 'r', encoding='utf-8') as f:
+    with open(schema_path, 'r', encoding='utf-8') as f:
         schema = f.read()
     
     # 執行 SQL 命令

@@ -5,8 +5,10 @@ import os
 
 def get_db():
     if 'db' not in g:
+        # 使用環境變量中的資料庫路徑
+        db_path = os.environ.get('DATABASE_PATH', 'gantt.db')
         g.db = sqlite3.connect(
-            'gantt.db',
+            db_path,
             detect_types=sqlite3.PARSE_DECLTYPES
         )
         g.db.row_factory = sqlite3.Row
